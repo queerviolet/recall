@@ -1,4 +1,4 @@
-import recall from '.'
+import recall from './recall'
 
 type ResultOf<I extends Iterator<any>> = I extends Iterator<infer T, infer R> ? IteratorResult<T, R> : never
 
