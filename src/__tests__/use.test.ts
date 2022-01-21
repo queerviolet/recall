@@ -1,6 +1,6 @@
 import {use, recall} from "..";
 
-describe("@wrap", () => {
+describe("@use", () => {
   it("lets you apply recall to methods", () => {
     let calls = 0;
     class Hello {

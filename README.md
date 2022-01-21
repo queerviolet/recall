@@ -18,6 +18,7 @@ expect(calls).toBe(1)
 `recall`ed functions cache both normal and exceptional return paths. if the underlying function throws the first time it's called for a set of arguments, it will always throw the same error when invoked again.
 
 arguments are shallowly compared by `===`. there is no way to change this.
+
 ## multiple errors
 
 `recall`ed functions can report errors while also returning data. these errors can be obtained with `getResult`:

@@ -1,5 +1,5 @@
 {
-  "name": "@queerviolet/recall",
+  "name": "@protoplasm/recall",
   "version": "0.1.0",
   "description": "lightweight memoization",
   "main": "dist/index.js",
