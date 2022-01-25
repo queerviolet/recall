@@ -1,98 +1,102 @@
 import WeakishTrie from './weakish-trie'
 
-interface Return<D> {
+interface IResult<D=any> {
+  didReturn(): this is Return<D>
+  didThrow(): this is Throw
+
+  readonly log: Log
+  errors(): Iterable<Error>
+}
+
+export interface Log extends Iterable<any> {
+  readonly messages?: ReadonlyArray<any>
+  filter<S = any>(pred?: (e: any) => e is S): Iterable<S>
+}
+
+interface Return<D> extends IResult<D> {
   exit: 'return'
   data: D
-  errors?: Error[]
 }
 
-interface Throw {
+interface Throw extends IResult {
   exit: 'throw'
-  throw: Error
-
-  // errors will also contain the thrown error
-  errors: Error[]
+  error: any
 }
 
-type Result<D> = Return<D> | Throw
+export type Result<D> = Return<D> | Throw
 
-class Report {
-  errors: Error[] | undefined
-
-  report(error: Error) {
-    if (!this.errors) this.errors = []
-    this.errors.push(error)
+export class Exit<D=any> implements IResult<D> {
+  didThrow(): this is Throw {
+    return this.exit === 'throw'
   }
+
+  didReturn(): this is Return<D> {
+    return this.exit === 'return'
+  }
+
+  get error() { return this.data }
+
+  *errors(): Iterable<Error> {
+    for (const error of this.log.filter(isError))
+      yield error
+    if (this.didThrow() && this.error instanceof Error)
+      yield this.error
+  }
+  
+  constructor (
+    public readonly exit: 'return' | 'throw',
+    public readonly log: Log,
+    public readonly data: any) { }
 }
 
-let currentReport: Report | null = null
+function isError(m: any): m is Error {
+  return m instanceof Error
+}
 
-export function report(error: Error) {
-  if (!currentReport) return console.error(error)
-  currentReport.report(error)
+const YES = () => true
+class Report implements Log {
+  messages?: any[]
+
+  *[Symbol.iterator](): Iterator<any> {
+    if (!this.messages) return
+    for (const m of this.messages) {
+      if (m instanceof Report) yield *m
+      else yield m
+    }
+  }
+
+  *filter<S>(pred: (e: any) => e is S = YES as any): Iterable<S> {
+    for (const m of this) if (pred(m)) yield m
+  }
+
+  report(msg: any) {
+    if (!this.messages) this.messages = []
+    this.messages.push(msg)
+  }  
+}
+
+let currentLog: Report | null = null
+
+export function report<T>(msg: T): T {
+  currentLog?.report(msg)
+  return msg
 }
 
 function execute<F extends (...args: any[]) => any>(fn: F, self: ThisParameterType<F>, args: Parameters<F>): Result<ReturnType<F>> {
-  const lastReport = currentReport
-  const result: Result<ReturnType<F>> = {
-    exit: 'return'
-  } as any
-  const collector = new Report
+  const lastLog = currentLog
+  const log = new Report
+  let exit: 'return' | 'throw' = 'return'
+  let data: any = null
   try {
-    currentReport = collector
-    ;(result as Return<ReturnType<F>>).data = fn.apply(self, args)
+    currentLog = log
+    data = fn.apply(self, args)
   } catch (error) {
-    report(error as Error)
-    ;(result as Throw).exit = 'throw'
-    ;(result as Throw).throw = error as Error
+    exit = 'throw'
+    data = error as Error
   } finally {
-    result.errors = collector.errors
-    currentReport = lastReport
+    currentLog = lastLog
   }
-  return result
-}
-
-class StartEvent<F extends (...args: any[]) => any> {
-  get type(): 'start' { return 'start' }
-  constructor(
-    public readonly fn: F,
-    public readonly self: ThisParameterType<F>,
-    public readonly args: Parameters<F>,
-    public readonly hit: boolean) {}
-
-  fnIs<Q extends (...args: any[]) => any>(fn: F): this is StartEvent<Q> {
-    return this.fn === fn
-  }
-}
-
-class EndEvent<F extends (...args: any[]) => any> {
-  get type(): 'end' { return 'end' }
-  constructor(
-    public readonly call: StartEvent<F>,
-    public readonly result: Result<ReturnType<F>>
-  ) {}
-}
-
-export type Event<F extends (...args: any[]) => any> =
-  StartEvent<F> | EndEvent<F>
-
-type Tracer = (event: Event<any>) => void
-let currentTrace: Tracer | null = null
-
-function emit<E extends Event<any>>(event: E): E | null {
-  if (!currentTrace) return null
-  currentTrace(event)
-  return event
-}
-
-export function trace<F extends () => any>(block: F, tracer: Tracer) {
-  let lastTrace = currentTrace
-  try {
-    currentTrace = tracer
-    block()
-  } finally {
-    currentTrace = lastTrace
-  }
+  return new Exit(exit, log, data)
 }
 
 const cache = new WeakishTrie<Result<any>>()
@@ -103,33 +107,29 @@ export type Recall<F extends (...args: any[]) => any> = F & {
 }
 
 function createRecall<F extends (...args: any[]) => any>(fn: F): Recall<F> {
-  function call(this: ThisParameterType<F>, ...args: Parameters<F>): ReturnType<F> {
+  type This = ThisParameterType<F>
+  type Args = Parameters<F>
+  type Return = ReturnType<F>
+  function call(this: This, ...args: Args): Return {
     const result = getResult.apply(this, args)
-    if (didThrow(result)) throw result.throw
+    if (currentLog) report(result.log)
+    if (result.didThrow()) throw result.error
     return result.data
   }
 
-  function getResult(this: ThisParameterType<F>, ...args: Parameters<F>): Result<ReturnType<F>> {
+  function getResult(this: This, ...args: Args): Result<Return> {
     const entry = cache.entry(fn, this, ...args)
-    const start = currentTrace ?
-      emit(new StartEvent(fn, this, args, entry.exists))
-      : null
-    const result = entry.value ? entry.value : entry.set(execute(fn, this, args))    
-    if (start) emit(new EndEvent(start, result))
+    const result = entry.value ? entry.value : entry.set(execute(fn, this, args))
     return result
   }
 
-  function getExisting(this: ThisParameterType<F>, ...args: Parameters<F>): Result<ReturnType<F>> | undefined {
+  function getExisting(this: This, ...args: Args): Result<Return> | undefined {
     return cache.entry(fn, this, ...args).value
   }
 
   call.getResult = getResult
   call.getExisting = getExisting
   return call as any as Recall<F>
-}
-
-function didThrow(result: any): result is Throw {
-  return result.exit === 'throw'
 }
 
 export const recall = createRecall(createRecall)
