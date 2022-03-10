@@ -1,3 +1,4 @@
+import { getResult, report } from "../report";
 import { replay } from "../replay";
 
 describe("replay", () => {
@@ -9,9 +10,10 @@ describe("replay", () => {
       yield 2;
       yield 3;
     });
+    expect(items()).toBe(items());
+    expect([...items()]).toEqual([1, 2, 3]);
     expect([...items()]).toEqual([...items()]);
     expect(calls).toBe(1);
-    expect(items()).not.toBe(items());
   });
 
   it("lazily evaluates underlying iterator", () => {
@@ -25,8 +27,12 @@ describe("replay", () => {
       yield 3;
     });
 
-    const a = script();
-    const b = script();
+    const A = script();
+    const B = script();
+    expect(A).toBe(B);
+    const a = A[Symbol.iterator]();
+    const b = B[Symbol.iterator]();
+    expect(log.length).toBe(0);
     a.next();
     b.next();
     expect(log).toMatchInlineSnapshot(`
@@ -51,6 +57,52 @@ describe("replay", () => {
         "hello",
         "world",
         "goodbye",
+      ]
+    `);
+  });
+
+  it.only("reports", () => {
+    const process = replay(function* () {
+      report("hello");
+      yield 1;
+      report("world");
+      yield 2;
+    });
+    expect(process()).toBe(process())
+    expect(getResult(() => [...process()]).log).toMatchInlineSnapshot(`
+      Report [
+        Report <empty>,
+        Report [
+          "hello",
+        ],
+        Report [
+          "world",
+        ],
+        Report <empty>,
+      ]
+    `);
+
+    expect(getResult(() => [...process()]).log).toMatchInlineSnapshot(`
+      Report [
+        Report <empty>,
+        Report [
+          "hello",
+        ],
+        Report [
+          "world",
+        ],
+        Report <empty>,
+      ]
+    `);
+
+    expect([...process()]).toEqual([1, 2]);
+    expect(getResult(() => process()[Symbol.iterator]().next()).log)
+      .toMatchInlineSnapshot(`
+      Report [
+        Report <empty>,
+        Report [
+          "hello",
+        ],
       ]
     `);
   });

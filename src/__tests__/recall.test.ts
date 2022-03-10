@@ -22,6 +22,15 @@ describe("recall", () => {
     expect(calls).toBe(1);
   });
 
+  const list = recall(<T extends any[]>(...args: T) => args);
+
+  it("memoizes objects by identity", () => {
+    expect(list("a", "b", "c")).toBe(list("a", "b", "c"));
+    expect(list(list("a", "b"), list("c"))).toBe(
+      list(list("a", "b"), list("c"))
+    );
+  });
+
   it("collects many errors with report", () => {
     const anAttempt = recall(() => {
       report(new Error("already going badly"));
@@ -127,9 +136,26 @@ describe("recall", () => {
     // we're still living in the past
     expect(getStatus(world)).toBe("good");
   });
+});
 
-  it("is itself recalled", () => {
-    const fn = () => {};
-    expect(recall(fn)).toBe(recall(fn));
+describe("recall.strong", () => {
+  it("(does not work) uses a strongly-referenced cache, so it can be iterated", () => {
+    const category = recall.strong((..._: string[]): string[] => []);
+    category("groceries", "produce").push("apples", "bananas", "pears");
+    category("groceries", "cold").push("ice cream", "oat milk");
+    category("electronics").push("dongle", "power adapter");
+    category("groceries", "produce").push("bananas");
+
+    expect(category("electronics")).toMatchInlineSnapshot(`
+      Array [
+        "dongle",
+        "power adapter",
+      ]
+    `);
+
+    expect([...category.eachExisting("electronics")]).toMatchInlineSnapshot(
+      `Array []`
+    );
+    expect([...category.eachExisting()]).toMatchInlineSnapshot(`Array []`);
   });
 });

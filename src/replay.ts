@@ -1,42 +1,66 @@
 import recall from './recall'
+import { execute, report, Result, Return } from './report'
 
-type ResultOf<I extends Iterator<any>> = I extends Iterator<infer T, infer R> ? IteratorResult<T, R> : never
+export type ItemOf<I extends Iterator<any>> = I extends Iterator<infer T> ? T : never
+export type IterFn = (...args: any) => Iterator<any>
+export interface Replay<F extends IterFn> {
+  (...args: Parameters<F>): Record<ItemOf<ReturnType<F>>>
+}
 
-export const replay = recall(
-  function replay<F extends (...args: any) => Iterator<any, any, undefined>>(fn: F): F {
-    const f = recall(fn)
-    const record = recall(<I extends Iterator<any>>(_iter: I) => [] as ResultOf<I>[])
+export function replay<F extends IterFn>(fn: F): Replay<F> { 
+  return recall(call)
 
-    return call as any as F
+  type Return = Iterable<ItemOf<ReturnType<F>>>
 
-    function call(this: ThisParameterType<F>, ...args: Parameters<F>): ReturnType<F> {
-      type T = ResultOf<ReturnType<F>>
+  function call(this: ThisParameterType<F>, ...args: Parameters<F>): Return {
+    const result = execute(fn, this, args)
+    if (result.didThrow()) throw result.error
+    return new Record(result)
+  }
+}
 
-      const underlying = f.apply(this, args)
-      const log = record(underlying)
-      let index = 0
-      let done: IteratorReturnResult<T> | null = null
-      const iter: ReturnType<F> = {
-        next(): IteratorResult<T> {
-          if (done) return done
-          if (index < log.length) return checkDone(log[index++])
-          const item = underlying.next()
-          log.push(item)
-          ++index
-          return checkDone(item)
-        },
-
-        [Symbol.iterator]() { return this }
-      } as ReturnType<F>
-
-      return iter
-
-      function checkDone(result: IteratorResult<T>) {
-        if (result.done) done = result
-        return result
-      }
+export class Record<T> {
+  constructor(base: Return<Iterator<T>>) {
+    this.#iter = base.data
+  }
+  
+  *[Symbol.iterator]() {
+    for (const result of this.results()) {
+      report(result.log)
+      if (result.didThrow()) throw result.error
+      const { done, value } = result.data
+      if (!done) yield value
     }
   }
-)
+
+  *results() {
+    const results = this.#results ?? this.#advance()
+    let index = 0
+    while (index < results.length) {
+      yield results[index++]
+      if (index >= results.length && !this.#done)
+        this.#advance()
+    }
+  }
+
+  #iter: Iterator<T>
+  #results: [Result<IteratorResult<T>>, ...Result<IteratorResult<T>>[]] | null = null;
+
+  get #done() {
+    if (!this.#results) return false
+    const last = this.#results[this.#results.length - 1]
+    if (last.didThrow()) return true
+    return last.data.done
+  }
+
+  #advance() {
+    if (!this.#results)
+      return this.#results = [execute(this.#iter.next, this.#iter, NO_ARGS)]
+    this.#results.push(execute(this.#iter.next, this.#iter, NO_ARGS))
+    return this.#results
+  }
+}
+
+const NO_ARGS: [] = []
 
 export default replay

@@ -11,6 +11,7 @@ module.exports = {
   ],
   snapshotSerializers: [
     ...defaults.snapshotSerializers,
+    "./src/snapshot-serializers/log.ts",
   ],
   moduleFileExtensions: [...defaults.moduleFileExtensions, "ts", "tsx"],
   globals: {
