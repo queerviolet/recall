@@ -208,6 +208,28 @@ const output = doStuff
   .unwrap(console.log)
 ```
 
+### `report` errors while yielding data
+
+```typescript
+const processedThings = replay(function *(things) {
+  for (const thing of things) {
+    if (isBad(thing)) {
+      report(new BadThingError("this thing is bad:", thing))
+    } else {
+      yield processGoodThing(thing)
+      goodThings.push(thing)   
+    }
+  }
+})
+
+const output = getResult(() =>
+    // iterate over all processedThings to collect
+    // errors on all of them    
+    [...processedThings(someThings)]
+  ).unwrap(console.log)
+```
+
+
 ### using `getResult` as a reporting boundary
 
 `getResult` and *fn.*`getResult` do not bubble `report`s up, so you can use them as error boundaries:
@@ -230,7 +252,7 @@ getResult(() => {
 
 getResult(() => {
   importantStuff()
-  getResult(() => optionalStuff)
+  getResult(() => optionalStuff())
     // swallowing the result swallows the error
 }).errors()
   // -> [Error: error in importantStuff]
@@ -244,7 +266,7 @@ this is useful if you want to use `getResult` (for example, to inspect the error
 ```typescript
 getResult(() => {
   importantStuff()
-  const result = getResult(() => optionalStuff)
+  const result = getResult(() => optionalStuff())
   for (const error in result.errors()) doSomethingElseWith(error)  
   report(result.log)
 }).errors()
