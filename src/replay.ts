@@ -14,7 +14,7 @@ export function replay<F extends IterFn>(fn: F): Replay<F> {
 
   function call(this: ThisParameterType<F>, ...args: Parameters<F>): Return {
     const result = execute(fn, this, args)
-    if (result.didThrow()) throw result.error
+    if (result.isThrow()) throw result.error
     return new Record(result)
   }
 }
@@ -27,7 +27,7 @@ export class Record<T> {
   *[Symbol.iterator]() {
     for (const result of this.results()) {
       report(result.log)
-      if (result.didThrow()) throw result.error
+      if (result.isThrow()) throw result.error
       const { done, value } = result.data
       if (!done) yield value
     }
@@ -49,7 +49,7 @@ export class Record<T> {
   get #done() {
     if (!this.#results) return false
     const last = this.#results[this.#results.length - 1]
-    if (last.didThrow()) return true
+    if (last.isThrow()) return true
     return last.data.done
   }
 

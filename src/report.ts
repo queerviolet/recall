@@ -1,6 +1,7 @@
 export interface IResult<D=any> {
-  didReturn(): this is Return<D>
-  didThrow(): this is Throw
+  isReturn(): this is Return<D>
+  isThrow(): this is Throw  
+  unwrap(printReportedError?: (err: Error) => void): D
 
   readonly log: Log
   errors(): Iterable<Error>
@@ -25,12 +26,20 @@ export type Result<D> = Return<D> | Throw
 export type Fn = (...args: any[]) => any
 
 export class Exit<D=any> implements IResult<D> {
-  didThrow(): this is Throw {
+  isThrow(): this is Throw {
     return this.exit === 'throw'
   }
 
-  didReturn(): this is Return<D> {
+  isReturn(): this is Return<D> {
     return this.exit === 'return'
+  }
+
+  unwrap(printReportedError?: (err: Error) => void): D {
+    if (printReportedError)
+      for (const error of this.log.filter(isError))
+        printReportedError(error)
+    if (this.isReturn()) return this.data
+    throw this.data
   }
 
   get error() { return this.data }
@@ -38,7 +47,7 @@ export class Exit<D=any> implements IResult<D> {
   *errors(): Iterable<Error> {
     for (const error of this.log.filter(isError))
       yield error
-    if (this.didThrow() && this.error instanceof Error)
+    if (this.isThrow() && this.error instanceof Error)
       yield this.error
   }
   

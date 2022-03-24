@@ -34,8 +34,7 @@ function createRecall<F extends Fn>(fn: F, cache: Cache<F> = Trie.weakish()): Re
   function call(this: This, ...args: Args): Return {
     const result = getResult.apply(this, args)
     report(result.log)
-    if (result.didThrow()) throw result.error
-    return result.data
+    return result.unwrap()
   }
 
   function getResult(this: This, ...args: Args): Result<Return> {
@@ -61,12 +60,5 @@ function createRecall<F extends Fn>(fn: F, cache: Cache<F> = Trie.weakish()): Re
 
 type RecallFn = <F extends Fn>(fn: Fn) => Recall<F>
 
-type Recaller = RecallFn & {
-  strong<F extends Fn>(fn: F): StrongRecall<F>
-}
-
-export const recall: Partial<Recaller> = createRecall as Partial<Recaller>
-recall.strong = createRecall(
-  <F extends Fn>(fn: F) => createRecall(fn, Trie.strong()) as StrongRecall<F>
-)
-export default recall as Recaller
+export const recall: RecallFn = createRecall as RecallFn
+export default recall

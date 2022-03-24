@@ -105,10 +105,11 @@ describe("recall", () => {
     const f1 = recall(() => {
       report("f1");
       someReports();
+      f0()
     });
 
     expect([...f0.getResult().log]).toEqual(["f0", "a", "b", "c"]);
-    expect([...f1.getResult().log]).toEqual(["f1", "a", "b", "c"]);
+    expect([...f1.getResult().log]).toEqual(["f1", "a", "b", "c", "f0", "a", "b", "c"]);
   });
 
   it("caches results based on the arguments", () => {
@@ -135,27 +136,5 @@ describe("recall", () => {
     world.status = "bad";
     // we're still living in the past
     expect(getStatus(world)).toBe("good");
-  });
-});
-
-describe("recall.strong", () => {
-  it("(does not work) uses a strongly-referenced cache, so it can be iterated", () => {
-    const category = recall.strong((..._: string[]): string[] => []);
-    category("groceries", "produce").push("apples", "bananas", "pears");
-    category("groceries", "cold").push("ice cream", "oat milk");
-    category("electronics").push("dongle", "power adapter");
-    category("groceries", "produce").push("bananas");
-
-    expect(category("electronics")).toMatchInlineSnapshot(`
-      Array [
-        "dongle",
-        "power adapter",
-      ]
-    `);
-
-    expect([...category.eachExisting("electronics")]).toMatchInlineSnapshot(
-      `Array []`
-    );
-    expect([...category.eachExisting()]).toMatchInlineSnapshot(`Array []`);
   });
 });

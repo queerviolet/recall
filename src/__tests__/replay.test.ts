@@ -61,7 +61,7 @@ describe("replay", () => {
     `);
   });
 
-  it.only("reports", () => {
+  it("reports", () => {
     const process = replay(function* () {
       report("hello");
       yield 1;
