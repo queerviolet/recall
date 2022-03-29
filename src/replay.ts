@@ -4,7 +4,11 @@ import { execute, report, Result, Return } from './report'
 export type ItemOf<I extends Iterator<any>> = I extends Iterator<infer T> ? T : never
 export type IterFn = (...args: any) => Iterator<any>
 export interface Replay<F extends IterFn> {
-  (...args: Parameters<F>): Record<ItemOf<ReturnType<F>>>
+  (...args: Parameters<F>): ReplayIterable<ItemOf<ReturnType<F>>>
+}
+
+export interface ReplayIterable<T> extends Iterable<T> {
+  results(): Iterable<Result<IteratorResult<T>>>
 }
 
 export function replay<F extends IterFn>(fn: F): Replay<F> { 
@@ -19,7 +23,7 @@ export function replay<F extends IterFn>(fn: F): Replay<F> {
   }
 }
 
-export class Record<T> {
+export class Record<T> implements ReplayIterable<T> {
   constructor(base: Return<Iterator<T>>) {
     this.#iter = base.data
   }
