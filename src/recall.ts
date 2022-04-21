@@ -58,7 +58,7 @@ function createRecall<F extends Fn>(fn: F, cache: Cache<F> = Trie.weakish()): Re
   return call as any as Recall<F>
 }
 
-type RecallFn = <F extends Fn>(fn: Fn) => Recall<F>
+type RecallFn = <F extends Fn>(fn: F) => Recall<F>
 
 export const recall: RecallFn = createRecall as RecallFn
 export default recall

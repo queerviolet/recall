@@ -14,7 +14,7 @@ export interface ReplayIterable<T> extends Iterable<T> {
 export function replay<F extends IterFn>(fn: F): Replay<F> { 
   return recall(call)
 
-  type Return = Iterable<ItemOf<ReturnType<F>>>
+  type Return = ReplayIterable<ItemOf<ReturnType<F>>>
 
   function call(this: ThisParameterType<F>, ...args: Parameters<F>): Return {
     const result = execute(fn, this, args)
