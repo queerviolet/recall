@@ -1,6 +1,6 @@
-import recall from '.'
+import recall, { Fn } from '.'
 
-export type Wrapper = <F extends (...args: any) => any>(fn: F) => F
+export type Wrapper = (fn: Fn) => Fn
 export const use = recall(
   function use<W extends Wrapper>(wrap: W) {
     return (_target: any, _prop: string, desc: PropertyDescriptor) => {
